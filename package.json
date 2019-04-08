@@ -4,16 +4,20 @@
   "description": "Stop motion image grabber for Maggie",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "./build.sh",
+    "run": "./run.sh",
+    "watch": "chokidar '**/*.elm' -c 'elm make src/client/client.elm --output=src/client/generated/client.js'"
   },
-  "author": "",
+  "author": "larsolesimonsen@gmail.com",
   "license": "ISC",
   "dependencies": {
     "express": "^4.16.4",
     "express-ws": "^4.0.0",
-    "npm": "^6.9.0"
+    "nedb": "^1.8.0",
+    "request": "^2.88.0"
   },
   "devDependencies": {
+    "chokidar-cli": "^1.2.2",
     "eslint": "^5.16.0",
     "eslint-config-airbnb-base": "^13.1.0",
     "eslint-plugin-import": "^2.16.0"

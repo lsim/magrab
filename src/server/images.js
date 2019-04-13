@@ -1,10 +1,10 @@
 const fs = require('fs');
 const request = require('request');
+const log = require('karhu').context('images');
 
-// const cameraUrl = 'http://camera/image/jpeg.cgi';
-// const cameraUser = 'admin';
-// const cameraPass = 'HDer1337';
-const imageFolder = 'images'; // TODO: get from configuration
+const config = require('./config');
+
+const { imagePath } = config;
 
 function grabImage(cameraUrl, cameraUser, cameraPass) {
   return new Promise((resolve, reject) => {
@@ -17,13 +17,13 @@ function grabImage(cameraUrl, cameraUser, cameraPass) {
       },
     };
     const fileName = `${Math.floor(Math.random() * 10000000)}.jpg`; // TODO: GUIDs?
-    const wstream = fs.createWriteStream(`${imageFolder}/${fileName}`);
+    const wstream = fs.createWriteStream(`${imagePath}/${fileName}`);
     request
       .get(requestOptions)
       .on('error', e => reject(e))
       .on('response', (res) => {
         if (res.statusCode !== 200) reject(res.statusCode);
-        else console.log(`Camera gave 200 - image ${fileName}`);
+        else log.debug(`Camera gave 200 - image ${fileName}`);
       })
       .on('end', () => resolve(fileName))
       .pipe(wstream)

@@ -11,8 +11,10 @@
   "author": "larsolesimonsen@gmail.com",
   "license": "ISC",
   "dependencies": {
+    "ansi-styles": "^3.2.1",
     "express": "^4.16.4",
     "express-ws": "^4.0.0",
+    "karhu": "^1.4.0",
     "nedb": "^1.8.0",
     "request": "^2.88.0"
   },

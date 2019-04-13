@@ -1,17 +1,28 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
 
 const express = require('express');
 const expressWS = require('express-ws');
+const karhu = require('karhu');
+const styles = require('ansi-styles');
+const logConf = require('karhu/config/default');
+
+const log = karhu.context('index');
+
+logConf.colors.DEBUG = styles.blue;
+logConf.colors.INFO = styles.yellowBright;
+logConf.colors.WARN = styles.orange;
+logConf.colors.ERROR = styles.red;
+
+karhu.configure(logConf);
+
 const images = require('./images');
+const config = require('./config');
+
+const { port } = config;
 
 const app = express();
-
 expressWS(app);
 
-const port = 3000;
-
-app.get('/', (req, res) => res.send('Hello World!'));
 
 app.use(express.static('./src/client'));
 app.use(express.static('./images'));
@@ -19,6 +30,7 @@ app.use(express.static('./images'));
 const projects = [];
 
 function sendState(ws) {
+  log.debug('Sending state to browser');
   ws.send(JSON.stringify(projects));
 }
 
@@ -33,14 +45,15 @@ function newProject(name) {
       },
     ],
   };
+  log.debug('Project created');
   projects.push(p);
 }
 
 app.ws('/connect', (websocket /* , request */) => {
-  console.log('A client connected!');
+  log.debug('A client connected!');
   sendState(websocket);
   websocket.on('message', (message) => {
-    console.log(`A client sent a message: ${message}`);
+    log.debug(`A client sent a message: ${message}`);
     const [messageType, ...escapedArgs] = message.split(':');
     const args = escapedArgs.map(s => s.replace(/<colon>/g, ':'));
     if (messageType === 'new-project' && args.length > 0) {
@@ -53,9 +66,9 @@ app.ws('/connect', (websocket /* , request */) => {
         const scene = project.scenes[sceneIndex];
         scene.images.push({ path: fileName });
         sendState(websocket);
-      }, err => console.log(`Grab failed ${err}`));
+      }, err => log.warn(`Grab failed: ${err}`));
     }
   });
 });
 
-app.listen(port, () => console.log(`Magrab server listening on port ${port}!`));
+app.listen(port, () => log.info(`Magrab server listening on port ${port}!`));

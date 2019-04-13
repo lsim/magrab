@@ -26,7 +26,8 @@ function grabImage(cameraUrl, cameraUser, cameraPass) {
         else console.log(`Camera gave 200 - image ${fileName}`);
       })
       .on('end', () => resolve(fileName))
-      .pipe(wstream);
+      .pipe(wstream)
+      .on('error', e => reject(e));
   });
 }
 

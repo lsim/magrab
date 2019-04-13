@@ -29,9 +29,7 @@ function newProject(name) {
     scenes: [
       {
         name: 'Scene 1',
-        images: [
-          { path: 'image.jpg' },
-        ],
+        images: [],
       },
     ],
   };

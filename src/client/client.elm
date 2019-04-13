@@ -95,7 +95,7 @@ type alias Model =
   }
 
 type Msg
-  = GrabImage
+  = GrabImage Project Int
   | Receive String
   | ToProjectsView
   | ToSettingsView
@@ -133,8 +133,8 @@ col =
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    GrabImage ->
-      actIfProjectView model (\p si -> (model, websocketOut ("grab-image:"++p.id++":"++(String.fromInt si)++":"++(col model.settings.cameraUrl)++":"++(col model.settings.cameraUser)++":"++(col model.settings.cameraPass))))
+    GrabImage project sceneIndex ->
+      (model, websocketOut ("grab-image:"++project.id++":"++(String.fromInt sceneIndex)++":"++(col model.settings.cameraUrl)++":"++(col model.settings.cameraUser)++":"++(col model.settings.cameraPass)))
 
     Receive jsonText ->
       let 
@@ -144,7 +144,7 @@ update msg model =
         newView = case model.currentView of
           ProjectView project sceneIndex -> 
             let
-              maybeProject = List.head (List.filter (\p -> p.id == project.id) model.projects)
+              maybeProject = List.head (List.filter (\p -> p.id == project.id) newProjects)
             in
               case maybeProject of
                 Just p -> ProjectView p sceneIndex
@@ -206,14 +206,19 @@ view model =
     renderScene : Scene -> Html Msg
     renderScene scene =
       div [class "scene"]
-        [ div [] [ (text scene.name) ]
-        , div [] (List.map renderImage (toList scene.images))
+        [ span [class "scene-hdr"] [(text scene.name)]
+        , button [] [text "Move up"]
+        , button [] [text "Move down"]
+        , button [] [text "Reverse"]
+        , button [] [text "Animate"]
+        , button [class "red"] [text "Delete Scene"]
+        , div [class "images"] (List.map renderImage (toList scene.images))
         ]
     renderProject : Project -> Int -> Html Msg
     renderProject project sceneIndex =
       div [class "project"] 
         [ div [] [ (text project.name) ]
-        , button [onClick GrabImage] [text "Take picture!"]
+        , button [onClick (GrabImage project sceneIndex)] [text "Take picture!"]
         , div [] (List.map renderScene (toList project.scenes))
         ]
     renderProjects : List Project -> Html Msg
@@ -221,12 +226,12 @@ view model =
       div [class "projects"]
         [ input [type_ "text", onInput ProjectNameChanged] []
         , button [onClick CreateProject] [text "New Project"]
-        , (ul [] (List.map (\p -> (li [onClick (ToProjectView p 0)] [text p.name])) projects))
+        , (ul [] (List.map (\p -> (li [] [a [onClick (ToProjectView p 0), href "#"] [text p.name]])) projects))
         ]
     menuButton theLbl theMsg =
       button [onClick theMsg] [text theLbl]
   in
-    div []
+    div [class "app"]
       [ div [class "menu"]
         [ menuButton "Settings" ToSettingsView
         , menuButton "Projects" ToProjectsView

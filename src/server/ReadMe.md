@@ -6,6 +6,8 @@ Built with node.js backend and elm frontend.
 
 #### TODO
 
+When the frontend changes the state, the change is fired at the backend, which pushes the updated state to the frontend, when it has been persisted. It should be reasonably fast because only image meta data is communicated thus.
+
 *server*
 - Use nedb to store project data
 - Use disk to store image data

@@ -1,10 +1,12 @@
 port module Main exposing (main)
 
 import Html exposing (..)
+import List exposing (..)
 import Html.Attributes exposing (..)
 import Browser
 import Html.Events exposing (..)
 import Json.Decode as Decode exposing (Decoder)
+import Array exposing (..)
 
 -- JavaScript usage: app.ports.websocketIn.send(response);
 port websocketIn : (String -> msg) -> Sub msg
@@ -32,19 +34,19 @@ imageDecoder =
 
 type alias Scene =
   { name : String
-  , images : List ImageInfo
+  , images : Array ImageInfo
   }
 
 sceneDecoder : Decoder Scene
 sceneDecoder =
   Decode.map2 Scene
     (Decode.field "name" Decode.string)
-    (Decode.field "images" (Decode.list imageDecoder))
+    (Decode.field "images" (Decode.array imageDecoder))
 
 type alias Project =
   { name : String
   , id : String
-  , scenes : List Scene
+  , scenes : Array Scene
   }
 
 projectDecoder : Decoder Project
@@ -52,7 +54,7 @@ projectDecoder =
   Decode.map3 Project
     (Decode.field "name" Decode.string)
     (Decode.field "id" Decode.string)
-    (Decode.field "scenes" (Decode.list sceneDecoder))
+    (Decode.field "scenes" (Decode.array sceneDecoder))
 
 projectsDecoder : Decoder (List Project)
 projectsDecoder =
@@ -64,24 +66,46 @@ type alias Settings =
   , cameraPass : String
   }
 
+asCameraUrlIn : Settings -> String -> Settings
+asCameraUrlIn settings newVal =
+  { settings | cameraUrl = newVal }
+
+asCameraUserIn : Settings -> String -> Settings
+asCameraUserIn settings newVal =
+  { settings | cameraUser = newVal }
+
+asCameraPassIn : Settings -> String -> Settings
+asCameraPassIn settings newVal =
+  { settings | cameraPass = newVal }
+
+asSettingsIn : Model -> Settings -> Model
+asSettingsIn model newSettings =
+  { model | settings = newSettings }
+
 type CurrentView 
   = SettingsView
   | ProjectsView
-  | ProjectView Project
+  | ProjectView Project Int
 
 type alias Model = 
   { projects : List Project
   , settings : Settings
   , currentView : CurrentView
+  , newProjectName : String
   }
 
 type Msg
   = GrabImage
-  | RequestProjects
   | Receive String
   | ToProjectsView
   | ToSettingsView
-  | ToProjectView Project
+  | ToProjectView Project Int
+  | ProjectNameChanged String
+  | CameraUrlChanged String
+  | CameraUserChanged String
+  | CameraPassChanged String
+  | CreateProject
+  | AddScene
 
 
 init : () -> (Model, Cmd Msg)
@@ -93,30 +117,69 @@ init _ =
      , cameraPass = "HDer1337"
      }
    , currentView = ProjectsView
+   , newProjectName = ""
   }, Cmd.none)
+
+actIfProjectView model fn = 
+  (case model.currentView of
+    ProjectView project sceneIndex -> (fn project sceneIndex)
+    _ -> (model, Cmd.none)
+  )
+
+col : String -> String
+col =
+  (String.replace ":" "<colon>")
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     GrabImage ->
-      (model, websocketOut "grab-image")
-    RequestProjects ->
-      (model, websocketOut "get-projects")
+      actIfProjectView model (\p si -> (model, websocketOut ("grab-image:"++p.id++":"++(String.fromInt si)++":"++(col model.settings.cameraUrl)++":"++(col model.settings.cameraUser)++":"++(col model.settings.cameraPass))))
+
     Receive jsonText ->
       let 
         newProjects = case (Decode.decodeString projectsDecoder jsonText) of 
           Ok ps -> ps
           Err _ -> []
+        newView = case model.currentView of
+          ProjectView project sceneIndex -> 
+            let
+              maybeProject = List.head (List.filter (\p -> p.id == project.id) model.projects)
+            in
+              case maybeProject of
+                Just p -> ProjectView p sceneIndex
+                _ -> ProjectsView
+          other -> other
       in
-        ({ model | projects = newProjects }, Cmd.none)
+        ({ model | projects = newProjects, currentView = newView }, Cmd.none)
 
     ToSettingsView ->
       ({ model | currentView = SettingsView }, Cmd.none)
     ToProjectsView ->
       ({ model | currentView = ProjectsView }, Cmd.none)
-    ToProjectView theProject ->
-      ({ model | currentView = ProjectView theProject }, Cmd.none)
+    ToProjectView theProject sceneIndex ->
+      ({ model | currentView = ProjectView theProject sceneIndex }, Cmd.none)
 
+    ProjectNameChanged newVal ->
+      ({ model | newProjectName = newVal }, Cmd.none)
+    CameraUrlChanged newVal ->
+      (newVal
+      |> asCameraUrlIn model.settings
+      |> asSettingsIn model, Cmd.none)
+    CameraUserChanged newVal ->
+      (newVal
+      |> asCameraUserIn model.settings
+      |> asSettingsIn model, Cmd.none)
+    CameraPassChanged newVal ->
+      (newVal
+      |> asCameraPassIn model.settings
+      |> asSettingsIn model , Cmd.none)
+
+    CreateProject ->
+      (model, websocketOut ("new-project:" ++ model.newProjectName))
+
+    AddScene -> 
+      actIfProjectView model (\p si -> (model, websocketOut ("new-scene:"++p.id++":"++(String.fromInt si))))
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -126,43 +189,50 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
   let
-    renderInput theLabel val theType =
+    renderInput theLabel val theType changeMessage =
       div [] 
         [ label [] [ text theLabel ]
-        , input [(type_ theType), (value val)] []
+        , input [(type_ theType), (value val), (onInput changeMessage)] []
         ]
     renderSettings settings =
-      div []
-        [ renderInput "Camera url" settings.cameraUrl "text"
-        , renderInput "Camera user" settings.cameraUser "text"
-        , renderInput "Camera pass" settings.cameraPass "password"
+      Html.form [class "settings"]
+        [ renderInput "Camera url" settings.cameraUrl "text" CameraUrlChanged
+        , renderInput "Camera user" settings.cameraUser "text" CameraUserChanged
+        , renderInput "Camera pass" settings.cameraPass "password" CameraPassChanged
         ]
+    renderImage : ImageInfo -> Html Msg
     renderImage i =
-      div [] [ img [(src i.path), (alt i.path)] [] ]
+      div [class "image"] [ img [(src i.path), (alt i.path), (style "height" "200px")] [] ]
+    renderScene : Scene -> Html Msg
     renderScene scene =
-      div [] 
+      div [class "scene"]
         [ div [] [ (text scene.name) ]
-        , div [] (List.map renderImage scene.images)
+        , div [] (List.map renderImage (toList scene.images))
         ]
-    renderProject project =
-      div [] 
+    renderProject : Project -> Int -> Html Msg
+    renderProject project sceneIndex =
+      div [class "project"] 
         [ div [] [ (text project.name) ]
-        , div [] (List.map renderScene project.scenes)
+        , button [onClick GrabImage] [text "Take picture!"]
+        , div [] (List.map renderScene (toList project.scenes))
         ]
+    renderProjects : List Project -> Html Msg
     renderProjects projects =
-      ul []
-        (List.map (\p -> (li [onClick (ToProjectView p)] [text p.name])) projects)
+      div [class "projects"]
+        [ input [type_ "text", onInput ProjectNameChanged] []
+        , button [onClick CreateProject] [text "New Project"]
+        , (ul [] (List.map (\p -> (li [onClick (ToProjectView p 0)] [text p.name])) projects))
+        ]
     menuButton theLbl theMsg =
       button [onClick theMsg] [text theLbl]
   in
     div []
-      [ div []
+      [ div [class "menu"]
         [ menuButton "Settings" ToSettingsView
         , menuButton "Projects" ToProjectsView
         ]
       , case model.currentView of
         SettingsView -> renderSettings model.settings
         ProjectsView -> renderProjects model.projects
-        ProjectView p -> renderProject p
-      , button [onClick GrabImage] [text "Take picture!"]
+        ProjectView p si -> renderProject p si
       ]

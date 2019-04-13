@@ -16,33 +16,45 @@ app.get('/', (req, res) => res.send('Hello World!'));
 app.use(express.static('./src/client'));
 app.use(express.static('./images'));
 
-function makeProject(fileName) {
-  return {
-    name: 'Server project',
-    id: 'the-id',
+const projects = [];
+
+function sendState(ws) {
+  ws.send(JSON.stringify(projects));
+}
+
+function newProject(name) {
+  const p = {
+    name,
+    id: projects.length.toString(), // TODO: could be GUID
     scenes: [
       {
         name: 'Scene 1',
         images: [
-          { path: fileName },
+          { path: 'image.jpg' },
         ],
-      },
-      {
-        name: 'Scene 2',
-        images: [],
       },
     ],
   };
+  projects.push(p);
 }
 
 app.ws('/connect', (websocket /* , request */) => {
   console.log('A client connected!');
-
+  sendState(websocket);
   websocket.on('message', (message) => {
     console.log(`A client sent a message: ${message}`);
-    if (message === 'grab-image') {
-      images.grabImage().then((fileName) => {
-        websocket.send(JSON.stringify(makeProject(fileName)));
+    const [messageType, ...escapedArgs] = message.split(':');
+    const args = escapedArgs.map(s => s.replace(/<colon>/g, ':'));
+    if (messageType === 'new-project' && args.length > 0) {
+      newProject(args[0], websocket);
+      sendState(websocket);
+    } else if (messageType === 'grab-image') {
+      const [projectId, sceneIndex, cameraUrl, cameraUser, cameraPass] = args;
+      images.grabImage(cameraUrl, cameraUser, cameraPass).then((fileName) => {
+        const [project] = projects.filter(p => p.id === projectId); // TODO: safety checks!
+        const scene = project.scenes[sceneIndex];
+        scene.images.push({ path: fileName });
+        sendState(websocket);
       }, err => console.log(`Grab failed ${err}`));
     }
   });

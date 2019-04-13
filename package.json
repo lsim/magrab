@@ -16,7 +16,8 @@
     "express-ws": "^4.0.0",
     "karhu": "^1.4.0",
     "nedb": "^1.8.0",
-    "request": "^2.88.0"
+    "request": "^2.88.0",
+    "uuid": "^3.3.2"
   },
   "devDependencies": {
     "chokidar-cli": "^1.2.2",

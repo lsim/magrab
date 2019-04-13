@@ -1,4 +1,5 @@
 module.exports = {
   port: 3000,
-  imageFolder: 'images',
+  imagePath: 'images',
+  projectsDbFile: 'magrab-projects.db',
 };

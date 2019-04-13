@@ -1,6 +1,7 @@
 const fs = require('fs');
 const request = require('request');
 const log = require('karhu').context('images');
+const uuid = require('uuid/v4');
 
 const config = require('./config');
 
@@ -16,7 +17,7 @@ function grabImage(cameraUrl, cameraUser, cameraPass) {
         sendImmediately: false, // Support digest auth scheme
       },
     };
-    const fileName = `${Math.floor(Math.random() * 10000000)}.jpg`; // TODO: GUIDs?
+    const fileName = `${uuid()}.jpg`;
     const wstream = fs.createWriteStream(`${imagePath}/${fileName}`);
     request
       .get(requestOptions)

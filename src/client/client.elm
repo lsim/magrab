@@ -53,7 +53,7 @@ projectDecoder : Decoder Project
 projectDecoder =
   Decode.map3 Project
     (Decode.field "name" Decode.string)
-    (Decode.field "id" Decode.string)
+    (Decode.field "_id" Decode.string) -- Note: mongodb _id
     (Decode.field "scenes" (Decode.array sceneDecoder))
 
 projectsDecoder : Decoder (List Project)

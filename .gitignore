@@ -3,3 +3,4 @@ generated
 elm-stuff
 .DS_Store
 images
+*.db

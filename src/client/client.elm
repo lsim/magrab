@@ -3,6 +3,8 @@ port module Main exposing (main)
 import Html exposing (..)
 import List exposing (..)
 import Html.Attributes exposing (..)
+import Html.Keyed as Keyed
+import Html.Lazy exposing (lazy)
 import Browser
 import Html.Events exposing (..)
 import Json.Decode as Decode exposing (Decoder)
@@ -10,6 +12,8 @@ import Json.Encode as Encode
 import Array exposing (..)
 import Task exposing (..)
 import Time exposing (..)
+import Browser.Dom as Dom exposing (..)
+import Process exposing (..)
 
 -- JavaScript usage: app.ports.websocketIn.send(response);
 port websocketIn : (String -> msg) -> Sub msg
@@ -146,6 +150,7 @@ type Msg
   | ReverseScene Project Int Scene
   | AnimateScene Project Int Scene
   | DeleteScene Project Int
+  | NoOp
 
 
 init : () -> (Model, Cmd Msg)
@@ -187,6 +192,13 @@ removeFromList : Int -> List a -> List a
 removeFromList i xs =
   (List.take i xs) ++ (List.drop (i+1) xs) 
 
+scrollToRight : String -> Cmd Msg
+scrollToRight id =
+  Process.sleep 700
+    |> Task.andThen (\_ -> Dom.getViewportOf id)
+    |> Task.andThen (\info -> Dom.setViewportOf id (Debug.log "Scrolling " info.scene.width) 0)
+    |> Task.attempt (\_ -> NoOp)
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
@@ -202,7 +214,12 @@ update msg model =
                 Just i -> i
                 _ -> 0
           in
-          (addImageToModel model imagePath projectId sceneIndex, initiateSave)
+          ( addImageToModel model imagePath projectId sceneIndex
+          , Cmd.batch 
+            [ initiateSave
+            , scrollToRight ("scene-" ++ (String.fromInt sceneIndex))
+            ]
+          )
         "state" :: jsonString :: _ ->
           -- Parse and restore project data
           let
@@ -276,7 +293,7 @@ update msg model =
         (updateProject model newProject, initiateSave)
 
     AnimateScene project sceneIndex scene ->
-      (model, Cmd.none)
+      (model, Cmd.none) -- TODO
 
     DeleteScene project sceneIndex ->
       let
@@ -288,7 +305,7 @@ update msg model =
       in
         (updateProject model newProject, initiateSave)
     
-
+    NoOp -> (model, Cmd.none)
 subscriptions : Model -> Sub Msg
 subscriptions model =
   websocketIn Receive
@@ -310,7 +327,10 @@ view model =
         ]
     renderImage : ImageInfo -> Html Msg
     renderImage i =
-      div [class "image"] [ img [(src i.path), (alt i.path), (style "height" "200px")] [] ]
+      div [class "image"] [ img [src i.path] [] ]
+    renderKeyedImage : ImageInfo -> (String, Html Msg)
+    renderKeyedImage i =
+      (i.path, lazy renderImage i)
     renderScene : Project -> Int -> Scene -> Html Msg
     renderScene project index scene =
       div [class "scene"]
@@ -320,7 +340,7 @@ view model =
         , button [onClick (ReverseScene project index scene)] [text "Reverse"]
         , button [onClick (AnimateScene project index scene)] [text "Animate"]
         , button [class "red", onClick (DeleteScene project index)] [text "Delete Scene"]
-        , div [class "images"] (List.map renderImage (toList scene.images))
+        , Keyed.node "div" [class "images", id ("scene-"++(String.fromInt index))] (List.map renderKeyedImage (toList scene.images))
         ]
     renderProject : Project -> Html Msg
     renderProject project =
@@ -345,7 +365,7 @@ view model =
         , menuButton "Projects" ToProjectsView
         ]
       , case model.currentView of
-        SettingsView -> renderSettings model.settings
-        ProjectsView -> renderProjects model.projects
-        ProjectView p -> renderProject p
+        SettingsView -> lazy renderSettings model.settings
+        ProjectsView -> lazy renderProjects model.projects
+        ProjectView p -> lazy renderProject p
       ]

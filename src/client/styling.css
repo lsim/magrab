@@ -37,7 +37,7 @@ body {
   margin: 1em;
   display: grid;
   grid-template-columns: 1fr 1fr 2fr 2fr 2fr 1fr;
-  grid-template-rows: 1fr 1fr 4fr;
+  grid-template-rows: 1fr 1fr auto;
   grid-gap: 10px;
 
   /* grid-template-areas:
@@ -49,7 +49,8 @@ body {
 .scene > button { grid-row: 2; }
 .scene > button.red { grid-column: 6; }
 .scene .images { grid-row: 3; grid-column-start: 1; grid-column-end: 7; }
-.scene .images .image { padding: 1px; }
+.scene .images .image { padding: 1px }
+.scene .images .image img { height: 200px; }
 
 .images {
   white-space: nowrap;

@@ -24,14 +24,10 @@ body {
   display: grid;
   grid-gap: 10px;
   padding: 10px;
-  /* grid-template-columns: 100px 100px 100px; */
-  /* grid-template-rows: 100px auto; */
-  /* grid-auto-columns: 100px; */
   grid-template-areas:
     "hd"
     "main"
 }
-
 
 .scene {
   margin: 1em;
@@ -39,18 +35,32 @@ body {
   grid-template-columns: 1fr 1fr 2fr 2fr 2fr 1fr;
   grid-template-rows: 1fr 1fr auto;
   grid-gap: 10px;
-
-  /* grid-template-areas:
-    "hdr hdr hdr hdr hdr"
-    "menu menu menu menu menu"
-    "imgs imgs imgs imgs imgs" */
 }
+
 .scene .scene-hdr { grid-row: 1; grid-column-start: 1; grid-column-end: 7; margin: auto; }
 .scene > button { grid-row: 2; }
-.scene > button.red { grid-column: 6; }
+.scene > .scene-delete-button { grid-column: 6; }
 .scene .images { grid-row: 3; grid-column-start: 1; grid-column-end: 7; }
-.scene .images .image { padding: 1px }
-.scene .images .image img { height: 200px; }
+.scene .images .image { 
+  padding: 1px;
+  display: inline-grid;
+}
+.scene .images .image img { height: 200px; grid-row: 1; grid-column: 1; }
+.scene .images .image .image-menu {
+  margin: 5px;
+  justify-self: center; 
+  align-self: flex-start;
+  grid-row: 1;
+  grid-column: 1;
+  z-index: 1;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease-out;
+}
+.scene .images .image:hover .image-menu { 
+  visibility: visible;
+  opacity: 1;
+}
 
 .images {
   white-space: nowrap;

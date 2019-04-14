@@ -327,7 +327,13 @@ view model =
         ]
     renderImage : ImageInfo -> Html Msg
     renderImage i =
-      div [class "image"] [ img [src i.path] [] ]
+      div [ class "image"] [ img [src i.path] []
+          , div [ class "image-menu" ]
+            [ button [ class "image-move-left" ] [ text "<" ]
+            , button [ class "image-delete-button", class "red" ] [ text "x" ]
+            , button [ class "image-move-right" ] [ text ">" ]
+            ]
+          ]
     renderKeyedImage : ImageInfo -> (String, Html Msg)
     renderKeyedImage i =
       (i.path, lazy renderImage i)
@@ -339,7 +345,7 @@ view model =
         , button [onClick (MoveSceneUp project index)] [text "Move up"]
         , button [onClick (ReverseScene project index scene)] [text "Reverse"]
         , button [onClick (AnimateScene project index scene)] [text "Animate"]
-        , button [class "red", onClick (DeleteScene project index)] [text "Delete Scene"]
+        , button [class "red", class "scene-delete-button", onClick (DeleteScene project index)] [text "Delete Scene"]
         , Keyed.node "div" [class "images", id ("scene-"++(String.fromInt index))] (List.map renderKeyedImage (toList scene.images))
         ]
     renderProject : Project -> Html Msg

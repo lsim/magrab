@@ -6,7 +6,10 @@ import Html.Attributes exposing (..)
 import Browser
 import Html.Events exposing (..)
 import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode
 import Array exposing (..)
+import Task exposing (..)
+import Time exposing (..)
 
 -- JavaScript usage: app.ports.websocketIn.send(response);
 port websocketIn : (String -> msg) -> Sub msg
@@ -27,20 +30,27 @@ type alias ImageInfo =
   { path : String
   }
 
+imageEncoder : ImageInfo -> Encode.Value
+imageEncoder image =
+  Encode.object
+    [ ("path", Encode.string image.path) ]
+
 imageDecoder : Decoder ImageInfo
 imageDecoder =
   Decode.map ImageInfo 
     (Decode.field "path" Decode.string)
 
 type alias Scene =
-  { name : String
-  , images : Array ImageInfo
-  }
+  { images : Array ImageInfo }
+
+sceneEncoder : Scene -> Encode.Value
+sceneEncoder scene =
+  Encode.object
+    [ ("images", Encode.list imageEncoder (Array.toList scene.images)) ]
 
 sceneDecoder : Decoder Scene
 sceneDecoder =
-  Decode.map2 Scene
-    (Decode.field "name" Decode.string)
+  Decode.map Scene
     (Decode.field "images" (Decode.array imageDecoder))
 
 type alias Project =
@@ -48,6 +58,14 @@ type alias Project =
   , id : String
   , scenes : Array Scene
   }
+
+projectEncoder : Project -> Encode.Value
+projectEncoder project =
+  Encode.object
+    [ ("name", Encode.string project.name)
+    , ("_id", Encode.string project.id)
+    , ("scenes", Encode.list sceneEncoder (Array.toList project.scenes))
+    ]
 
 projectDecoder : Decoder Project
 projectDecoder =
@@ -82,10 +100,27 @@ asSettingsIn : Model -> Settings -> Model
 asSettingsIn model newSettings =
   { model | settings = newSettings }
 
+addImageToModel : Model -> String -> String -> Int -> Model
+addImageToModel model imagePath projectId sceneIndex =
+  case List.filter (\p -> p.id == projectId) model.projects of
+    project :: _ ->
+      case Array.get sceneIndex project.scenes of
+        Just scene -> 
+          let
+            newImages = Array.push { path = imagePath } scene.images
+            newScene = { scene | images = newImages }
+            newScenes = Array.set sceneIndex newScene project.scenes
+            newProject = { project | scenes = newScenes }
+          in
+            updateProject model newProject
+        _ -> Debug.log "No such scene" model -- No such scene - ignore
+    _ -> Debug.log "No such project" model -- No such project - ignore
+
+
 type CurrentView 
   = SettingsView
   | ProjectsView
-  | ProjectView Project Int
+  | ProjectView Project
 
 type alias Model = 
   { projects : List Project
@@ -106,6 +141,10 @@ type Msg
   | CameraPassChanged String
   | CreateProject
   | AddScene
+  | SaveProjects
+  | MoveSceneUp Project Int
+  | ReverseScene Project Int Scene
+  | AnimateScene Project Int Scene
 
 
 init : () -> (Model, Cmd Msg)
@@ -122,13 +161,27 @@ init _ =
 
 actIfProjectView model fn = 
   (case model.currentView of
-    ProjectView project sceneIndex -> (fn project sceneIndex)
+    ProjectView project -> (fn project)
     _ -> (model, Cmd.none)
   )
 
 col : String -> String
 col =
   (String.replace ":" "<colon>")
+initiateSave : Cmd Msg
+initiateSave =
+  Task.perform (\_ -> SaveProjects) Time.now
+
+updateProject : Model -> Project -> Model
+updateProject model newProject =
+  let
+    newProjects = List.map (\p -> if p.id == newProject.id then newProject else p) model.projects
+    newView = case model.currentView of
+      ProjectView _ -> ProjectView newProject
+      other -> other
+  in
+    { model | projects = newProjects, currentView = newView }
+  
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -136,29 +189,39 @@ update msg model =
     GrabImage project sceneIndex ->
       (model, websocketOut ("grab-image:"++project.id++":"++(String.fromInt sceneIndex)++":"++(col model.settings.cameraUrl)++":"++(col model.settings.cameraUser)++":"++(col model.settings.cameraPass)))
 
-    Receive jsonText ->
-      let 
-        newProjects = case (Decode.decodeString projectsDecoder jsonText) of 
-          Ok ps -> ps
-          Err _ -> []
-        newView = case model.currentView of
-          ProjectView project sceneIndex -> 
-            let
-              maybeProject = List.head (List.filter (\p -> p.id == project.id) newProjects)
-            in
-              case maybeProject of
-                Just p -> ProjectView p sceneIndex
-                _ -> ProjectsView
-          other -> other
-      in
-        ({ model | projects = newProjects, currentView = newView }, Cmd.none)
+    Receive data ->
+      case String.split ":" data of
+        "image-grabbed" :: imagePath :: projectId :: sceneIndexString :: _ ->
+          -- Add the image to the scene in the project
+          let
+            sceneIndex = case String.toInt sceneIndexString of
+                Just i -> i
+                _ -> 0
+          in
+          (addImageToModel model imagePath projectId sceneIndex, initiateSave)
+        "state" :: jsonString :: _ ->
+          -- Parse and restore project data
+          let
+            safeJsonString = String.replace "<colon>" ":" jsonString
+            newProjects = case (Decode.decodeString projectsDecoder safeJsonString) of 
+              Ok ps -> ps
+              Err err -> Debug.log ("json parsing failed"++(Decode.errorToString err)) []
+            newView = case model.currentView of
+              ProjectView project -> 
+                case List.filter (\p -> p.id == project.id) newProjects of
+                  newProject :: _ -> ProjectView newProject
+                  _ -> ProjectsView
+              other -> other
+          in
+            ({ model | projects = newProjects, currentView = newView }, Cmd.none)
+        _ -> (model, Cmd.none) -- Unknown message received - ignore
 
     ToSettingsView ->
       ({ model | currentView = SettingsView }, Cmd.none)
     ToProjectsView ->
       ({ model | currentView = ProjectsView }, Cmd.none)
     ToProjectView theProject sceneIndex ->
-      ({ model | currentView = ProjectView theProject sceneIndex }, Cmd.none)
+      ({ model | currentView = ProjectView theProject }, Cmd.none)
 
     ProjectNameChanged newVal ->
       ({ model | newProjectName = newVal }, Cmd.none)
@@ -178,8 +241,38 @@ update msg model =
     CreateProject ->
       (model, websocketOut ("new-project:" ++ model.newProjectName))
 
-    AddScene -> 
-      actIfProjectView model (\p si -> (model, websocketOut ("new-scene:"++p.id++":"++(String.fromInt si))))
+    AddScene ->
+      actIfProjectView model (\project -> 
+        let
+          newScenes = Array.push { images = Array.empty } project.scenes
+          newProject = { project | scenes = newScenes }
+        in
+          (updateProject model newProject, initiateSave))
+
+    SaveProjects ->
+      (model, websocketOut ("save:"++String.replace ":" "<colon>" (Encode.encode 0 (Encode.list projectEncoder model.projects)))) -- 0 indents
+
+    MoveSceneUp project sceneIndex ->
+      let
+        mbyOtherScene = Array.get (sceneIndex - 1) project.scenes
+        mbyScene = Array.get sceneIndex project.scenes
+        newScenes = case (mbyScene, mbyOtherScene) of
+          (Just scene, Just otherScene) -> Array.set (sceneIndex - 1) scene (Array.set sceneIndex otherScene project.scenes)
+          _ -> project.scenes
+        newProject = { project | scenes = newScenes }
+      in
+        (updateProject model newProject, initiateSave)
+
+    ReverseScene project sceneIndex scene ->
+      let
+        newScene = { scene | images = scene.images |> Array.toList |> List.reverse |> Array.fromList }
+        newScenes = Array.set sceneIndex newScene project.scenes
+        newProject = { project | scenes = newScenes }
+      in
+        (updateProject model newProject, initiateSave)
+
+    AnimateScene project sceneIndex scene ->
+      (model, Cmd.none)
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -203,23 +296,23 @@ view model =
     renderImage : ImageInfo -> Html Msg
     renderImage i =
       div [class "image"] [ img [(src i.path), (alt i.path), (style "height" "200px")] [] ]
-    renderScene : Scene -> Html Msg
-    renderScene scene =
+    renderScene : Project -> Int -> Scene -> Html Msg
+    renderScene project index scene =
       div [class "scene"]
-        [ span [class "scene-hdr"] [(text scene.name)]
-        , button [] [text "Move up"]
-        , button [] [text "Move down"]
-        , button [] [text "Reverse"]
-        , button [] [text "Animate"]
+        [ span [class "scene-hdr"] [(text ("Scene " ++ String.fromInt (index+1)))]
+        , button [onClick (GrabImage project index)] [text "Take picture!"]
+        , button [onClick (MoveSceneUp project index)] [text "Move up"]
+        , button [onClick (ReverseScene project index scene)] [text "Reverse"]
+        , button [onClick (AnimateScene project index scene)] [text "Animate"]
         , button [class "red"] [text "Delete Scene"]
         , div [class "images"] (List.map renderImage (toList scene.images))
         ]
-    renderProject : Project -> Int -> Html Msg
-    renderProject project sceneIndex =
+    renderProject : Project -> Html Msg
+    renderProject project =
       div [class "project"] 
         [ div [] [ (text project.name) ]
-        , button [onClick (GrabImage project sceneIndex)] [text "Take picture!"]
-        , div [] (List.map renderScene (toList project.scenes))
+        , button [onClick AddScene] [text "Add scene"]
+        , div [] (List.indexedMap (renderScene project) (toList project.scenes))
         ]
     renderProjects : List Project -> Html Msg
     renderProjects projects =
@@ -239,5 +332,5 @@ view model =
       , case model.currentView of
         SettingsView -> renderSettings model.settings
         ProjectsView -> renderProjects model.projects
-        ProjectView p si -> renderProject p si
+        ProjectView p -> renderProject p
       ]

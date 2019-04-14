@@ -11,13 +11,14 @@ logConf.colors.DEBUG = styles.blue;
 logConf.colors.INFO = styles.yellowBright;
 logConf.colors.WARN = styles.orange;
 logConf.colors.ERROR = styles.red;
+logConf.defaultLogLevel = 'DEBUG';
 karhu.configure(logConf);
 const log = karhu.context('index');
 // Load internal dependencies
 const images = require('./images');
 const config = require('./config');
 
-const { port, projectsDbFile } = config;
+const { port, projectsDbFile, imagePath } = config;
 
 // Set up persistence
 
@@ -29,28 +30,27 @@ const app = express();
 expressWS(app);
 
 app.use(express.static('./src/client'));
-app.use(express.static('./images'));
+app.use(express.static(`./${imagePath}`)); // TODO: Hm .. that path has to be relative then
 
 function sendState(ws) {
   log.debug('Sending state to browser');
   projectsDb.find({}, (err, projects) => {
-    ws.send(JSON.stringify(projects));
+    if (err) log.warn(`Error getting data for sendState ${err}`);
+    else ws.send(`state:${JSON.stringify(projects).replace(/:/g, '<colon>')}`);
   });
 }
 
 function newProject(name, cb) {
   const p = {
     name,
-    // id: uuid(),
     scenes: [
       {
-        name: 'Scene 1',
         images: [],
       },
     ],
   };
-  log.debug('Project created');
   projectsDb.insert(p, cb);
+  log.debug(`Project created: ${name}`);
 }
 
 app.ws('/connect', (websocket /* , request */) => {
@@ -65,15 +65,26 @@ app.ws('/connect', (websocket /* , request */) => {
         if (err) log.warn(`Error inserting new project ${err}`);
         else sendState(websocket);
       });
+    } else if (messageType === 'save' && args.length > 0) {
+      const [jsonString] = args;
+      const projects = JSON.parse(jsonString);
+      const promises = projects.map(p => new Promise((resolve, reject) => {
+        log.debug(`Attempting to upsert with _id ${p.id}`);
+        const { _id } = p;
+        projectsDb.update({ _id }, p, { upsert: true },
+          (err) => {
+            log.debug(`Upsert finished for project ${p.name} - ${err}`);
+            if (err) reject(err); else resolve(p);
+          });
+      }));
+      Promise.all(promises).then(
+        () => log.debug('Save successful'),
+        err => log.warn(`Save failed ${err}`),
+      );
     } else if (messageType === 'grab-image') {
       const [projectId, sceneIndex, cameraUrl, cameraUser, cameraPass] = args;
       images.grabImage(cameraUrl, cameraUser, cameraPass).then((fileName) => {
-        const pushCommand = {};
-        pushCommand[`scenes.${sceneIndex}.images`] = { path: fileName };
-        projectsDb.update({ _id: projectId }, { $push: pushCommand }, {}, (err) => {
-          if (err) log.warn(`Error adding image to project ${projectId}, scene index ${sceneIndex}: ${err}`);
-          else sendState(websocket);
-        });
+        websocket.send(`image-grabbed:${fileName}:${projectId}:${sceneIndex}`);
       }, err => log.warn(`Grab failed: ${err}`));
     }
   });

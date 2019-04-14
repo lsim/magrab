@@ -27,5 +27,6 @@ When the frontend changes the state, the change is fired at the backend, which p
 - scene crud
 - change scene order
 - change image order
-- 
+- view finder (http://camera/video/mjpg.cgi in an iframe? How about auth?)
+- Undo/redo would be cool - there's a lib for that
 

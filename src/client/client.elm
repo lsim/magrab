@@ -145,6 +145,7 @@ type Msg
   | MoveSceneUp Project Int
   | ReverseScene Project Int Scene
   | AnimateScene Project Int Scene
+  | DeleteScene Project Int
 
 
 init : () -> (Model, Cmd Msg)
@@ -182,6 +183,9 @@ updateProject model newProject =
   in
     { model | projects = newProjects, currentView = newView }
   
+removeFromList : Int -> List a -> List a
+removeFromList i xs =
+  (List.take i xs) ++ (List.drop (i+1) xs) 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -274,6 +278,17 @@ update msg model =
     AnimateScene project sceneIndex scene ->
       (model, Cmd.none)
 
+    DeleteScene project sceneIndex ->
+      let
+        newScenes = project.scenes 
+          |> Array.toList 
+          |> removeFromList sceneIndex 
+          |> Array.fromList
+        newProject = { project | scenes = newScenes }
+      in
+        (updateProject model newProject, initiateSave)
+    
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
   websocketIn Receive
@@ -304,7 +319,7 @@ view model =
         , button [onClick (MoveSceneUp project index)] [text "Move up"]
         , button [onClick (ReverseScene project index scene)] [text "Reverse"]
         , button [onClick (AnimateScene project index scene)] [text "Animate"]
-        , button [class "red"] [text "Delete Scene"]
+        , button [class "red", onClick (DeleteScene project index)] [text "Delete Scene"]
         , div [class "images"] (List.map renderImage (toList scene.images))
         ]
     renderProject : Project -> Html Msg

@@ -32,6 +32,31 @@ function grabImage(cameraUrl, cameraUser, cameraPass) {
   });
 }
 
+function pruneOrphanImages(projects) {
+  const flatten = arrs => Array.prototype.concat.apply([], arrs);
+  const referencedImageNames = flatten(
+    projects.map(p => flatten(
+      p.scenes.map(s => s.images.map(i => i.path)),
+    )),
+  );
+  log.info(`Pruning images in ${imagePath}`);
+  return new Promise((resolve, reject) => {
+    fs.readdir(imagePath, (err, imageFiles) => {
+      if (err) return reject(err);
+      const orphans = imageFiles.filter(i => referencedImageNames.indexOf(i) === -1);
+      log.info(`Deleting ${orphans.length} files`);
+      const promises = orphans.map(
+        o => new Promise(
+          (rmResolve, rmReject) => fs.unlink(`${imagePath}/${o}`,
+            rmErr => (rmErr ? rmReject(rmErr) : rmResolve())),
+        ),
+      );
+      return Promise.all(promises);
+    });
+  });
+}
+
 module.exports = {
   grabImage,
+  pruneOrphanImages,
 };

@@ -32,6 +32,12 @@ expressWS(app);
 app.use(express.static('./src/client'));
 app.use(express.static(`./${imagePath}`)); // TODO: Hm .. that path has to be relative then
 
+// Prune image files only at startup (when no undo buffer would be likely to cause trouble)
+projectsDb.find({}, (err, projects) => {
+  if (err) log.warn(`Error getting data for image prune ${err}`);
+  else images.pruneOrphanImages(projects);
+});
+
 function sendState(ws) {
   log.debug('Sending state to browser');
   projectsDb.find({}, (err, projects) => {
@@ -57,8 +63,8 @@ app.ws('/connect', (websocket /* , request */) => {
   log.debug('A client connected!');
   sendState(websocket);
   websocket.on('message', (message) => {
-    log.debug(`A client sent a message: ${message}`);
     const [messageType, ...escapedArgs] = message.split(':');
+    log.debug(`A client sent a ${messageType} message with ${escapedArgs.length} args`);
     const args = escapedArgs.map(s => s.replace(/<colon>/g, ':'));
     if (messageType === 'new-project' && args.length > 0) {
       newProject(args[0], (err) => {

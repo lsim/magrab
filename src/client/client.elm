@@ -131,6 +131,7 @@ type alias Model =
   , settings : Settings
   , currentView : CurrentView
   , newProjectName : String
+  , currentAnimation : Maybe String
   }
 
 type Msg
@@ -144,11 +145,15 @@ type Msg
   | CameraUserChanged String
   | CameraPassChanged String
   | CreateProject
+  -- | DeleteProject
   | AddScene
   | SaveProjects
   | MoveSceneUp Project Int
   | ReverseScene Project Int Scene
-  | AnimateScene Project Int Scene
+  | AnimateScene Scene
+  | AnimateProject Project
+  | AnimationReady String
+  | StopAnimation
   | DeleteScene Project Int
   | NoOp
 
@@ -163,6 +168,7 @@ init _ =
      }
    , currentView = ProjectsView
    , newProjectName = ""
+   , currentAnimation = Nothing
   }, Cmd.none)
 
 actIfProjectView model fn = 
@@ -235,6 +241,8 @@ update msg model =
               other -> other
           in
             ({ model | projects = newProjects, currentView = newView }, Cmd.none)
+        "gif-ready" :: fileName :: _ ->
+          ({ model | currentAnimation = Just fileName }, Cmd.none)
         _ -> (model, Cmd.none) -- Unknown message received - ignore
 
     ToSettingsView ->
@@ -292,8 +300,32 @@ update msg model =
       in
         (updateProject model newProject, initiateSave)
 
-    AnimateScene project sceneIndex scene ->
-      (model, Cmd.none) -- TODO
+    AnimateScene scene ->
+      let
+        imageNames = scene.images
+          |> Array.toList
+          |> List.map (\i -> i.path)
+          |> String.join ":"
+      in
+        (model, websocketOut ("make-gif:"++imageNames))
+
+    AnimateProject project ->
+      let
+        imageNames = project.scenes
+          |> Array.toList
+          |> List.concatMap (\scene -> 
+            scene.images 
+            |> Array.toList 
+            |> List.map (\i -> i.path))
+          |> String.join ":"
+      in
+        (model, websocketOut ("make-gif:"++imageNames))
+
+    AnimationReady fileName ->
+      ({ model | currentAnimation = Just fileName }, Cmd.none)
+
+    StopAnimation ->
+      ({ model | currentAnimation = Nothing }, Cmd.none)
 
     DeleteScene project sceneIndex ->
       let
@@ -341,10 +373,10 @@ view model =
     renderScene project index scene =
       div [class "scene"]
         [ span [class "scene-hdr"] [(text ("Scene " ++ String.fromInt (index+1)))]
-        , button [onClick (GrabImage project index)] [text "Take picture!"]
-        , button [onClick (MoveSceneUp project index)] [text "Move up"]
+        , button [onClick (GrabImage project index)] [text "Take Picture!"]
+        , button [onClick (MoveSceneUp project index)] [text "Move Up"]
         , button [onClick (ReverseScene project index scene)] [text "Reverse"]
-        , button [onClick (AnimateScene project index scene)] [text "Animate"]
+        , button [onClick (AnimateScene scene)] [text "Animate"]
         , button [class "red", class "scene-delete-button", onClick (DeleteScene project index)] [text "Delete Scene"]
         , Keyed.node "div" [class "images", id ("scene-"++(String.fromInt index))] (List.map renderKeyedImage (toList scene.images))
         ]
@@ -352,7 +384,8 @@ view model =
     renderProject project =
       div [class "project"] 
         [ div [] [ (text project.name) ]
-        , button [onClick AddScene] [text "Add scene"]
+        , button [onClick AddScene] [text "Add Scene"]
+        , button [onClick (AnimateProject project)] [text "Animate Project"]
         , div [] (List.indexedMap (renderScene project) (toList project.scenes))
         ]
     renderProjects : List Project -> Html Msg
@@ -374,4 +407,11 @@ view model =
         SettingsView -> lazy renderSettings model.settings
         ProjectsView -> lazy renderProjects model.projects
         ProjectView p -> lazy renderProject p
+      , case model.currentAnimation of
+        Just path ->
+          div [ class "animation" ]
+          [ img [ src path ] []
+          , button [ onClick StopAnimation ] [ text "Close" ]
+          ]
+        Nothing -> span [] []
       ]

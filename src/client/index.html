@@ -10,8 +10,7 @@
   <div id="elm-node"></div>
   <script>
     var app = Elm.Main.init({node: document.getElementById("elm-node")});
-    
-    var ws = new WebSocket("ws://localhost:3000/connect");
+    var ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/connect");
     ws.onclose = function() {
       console.debug('Lost connection to server!');
     }

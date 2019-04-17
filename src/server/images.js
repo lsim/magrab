@@ -49,12 +49,14 @@ function pruneOrphanImages(projects) {
       const orphans = imageFiles.filter(i => referencedImageNames.indexOf(i) === -1);
       if (!orphans || orphans.length === 0) return resolve();
       log.info(`Deleting ${orphans.length} files`);
-      const promises = orphans.map(
-        o => new Promise(
-          (rmResolve, rmReject) => fs.unlink(`${imagePath}/${o}`,
-            rmErr => (rmErr ? rmReject(rmErr) : rmResolve())),
-        ),
-      );
+      const promises = orphans
+        .filter(f => f.endsWith('.jpg'))
+        .map(
+          o => new Promise(
+            (rmResolve, rmReject) => fs.unlink(`${imagePath}/${o}`,
+              rmErr => (rmErr ? rmReject(rmErr) : rmResolve())),
+          ),
+        );
       return Promise.all(promises);
     });
   });
@@ -67,10 +69,12 @@ function pruneGifs() {
       if (err) return reject(err);
       if (!gifFiles || gifFiles.length === 0) return resolve();
       log.info(`Deleting ${gifFiles.length} gifs`);
-      const promises = gifFiles.map(
-        gf => new Promise((rmResolve, rmReject) => fs.unlink(`${gifPath}/${gf}`,
-          rmErr => (rmErr ? rmReject(rmErr) : rmResolve()))),
-      );
+      const promises = gifFiles
+        .filter(f => f.endsWith('.gif'))
+        .map(
+          gf => new Promise((rmResolve, rmReject) => fs.unlink(`${gifPath}/${gf}`,
+            rmErr => (rmErr ? rmReject(rmErr) : rmResolve()))),
+        );
       return Promise.all(promises);
     });
   });

@@ -1,43 +1,62 @@
 
+* {
+  grid-gap: 10px;
+}
+
 body {
-  line-height: 2em;
+  /* line-height: 2em; */
   padding: 0;
   margin: 0;
-}
-
-.menu {
-  grid-area: hd;
-  display: grid;
-  grid-gap: 10px;
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.settings { grid-area: main }
-.projects { grid-area: main }
-.project {
-  grid-area: main;
-  display: grid;
+  font-size: 1rem;
+  font-family: Lato,'Helvetica Neue',Arial,Helvetica,sans-serif;
   grid-gap: 10px;
 }
 
 .app {
   display: grid;
-  grid-gap: 10px;
   padding: 10px;
-  grid-template-areas:
-    "hd"
-    "main"
 }
 
+.animation {
+  position: absolute;
+  z-index: 1;
+  top: 5vh;
+  left: 5vw;
+  width: 90vw;
+  height: 90vh;
+}
+.animation img { max-width: 90vw; max-height: 90vh; }
+.animation .animation-overlay { position: fixed; opacity: .5; top: 0; left: 0; bottom: 0; right: 0; background-color: white; z-index: -1; }
+
+.menu {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* .settings { grid-area: main } */
+.projects {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+}
+.projects .project-name-input { grid-column: 1 }
+.projects .new-project-button { grid-column: 2 }
+.projects .project-listing { grid-row: 2 }
+.project {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr
+}
+.project .project-title { grid-column-start: 1; grid-column-end: 5; justify-self: center; font-size: 150%; }
+.project .add-scene-button { grid-row: 2; grid-column: 1; }
+.project .animate-project-button { grid-row: 2; grid-column: 2; }
+.project .scene-container { grid-row: 3; grid-column-start: 1; grid-column-end: 5; }
 .scene {
   margin: 1em;
   display: grid;
   grid-template-columns: 1fr 1fr 2fr 2fr 2fr 1fr;
   grid-template-rows: 1fr 1fr auto;
-  grid-gap: 10px;
 }
 
-.scene .scene-hdr { grid-row: 1; grid-column-start: 1; grid-column-end: 7; margin: auto; }
+.scene .scene-hdr { grid-row: 1; grid-column-start: 1; grid-column-end: 7; justify-self: center; font-weight: bold; }
 .scene > button { grid-row: 2; }
 .scene > .scene-delete-button { grid-column: 6; }
 .scene .images { grid-row: 3; grid-column-start: 1; grid-column-end: 7; }
@@ -107,6 +126,20 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+button.blue {
+  background-color: #2185d0;
+  color: #fff;
+  text-shadow: none;
+  background-image: none;
+}
+
+button.green {
+  background-color: #21ba45;
+  color: #fff;
+  text-shadow: none;
+  background-image: none;
+}
+
 button.red {
   background-color: #db2828;
   color: #fff;
@@ -114,15 +147,13 @@ button.red {
   background-image: none;}
 
 input[type="text"] {
-  font-size: 1rem;
-  font-family: Lato,'Helvetica Neue',Arial,Helvetica,sans-serif;
   margin: 0;
   outline: 0;
   -webkit-appearance: none;
   -webkit-tap-highlight-color: rgba(255,255,255,0);
-  line-height: 1.21428571em;
+  /* line-height: 1.21428571em; */
   padding: .67857143em 1em;
-  font-size: 1em;
+  /* font-size: 1em; */
   background: #fff;
   border: 1px solid rgba(34,36,38,.15);
   color: rgba(0,0,0,.87);

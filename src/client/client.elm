@@ -436,10 +436,10 @@ view model =
     renderScene project index scene =
       div [class "scene"]
         [ span [class "scene-hdr"] [(text ("Scene " ++ String.fromInt (index+1)))]
-        , button [onClick (GrabImage project index)] [text "Take Picture!"]
+        , button [onClick (GrabImage project index), class "blue"] [text "Take Picture!"]
         , button [onClick (MoveSceneUp project index)] [text "Move Up"]
         , button [onClick (ReverseScene project index scene)] [text "Reverse"]
-        , button [onClick (AnimateScene scene)] [text "Animate"]
+        , button [onClick (AnimateScene scene), class "green"] [text "Animate"]
         , button [class "red", class "scene-delete-button", onClick (DeleteScene project index)] [text "Delete Scene"]
         , Keyed.node "div" [class "images", id ("scene-"++(String.fromInt index))] (List.indexedMap (renderKeyedImage project index) (toList scene.images))
         ]
@@ -447,16 +447,16 @@ view model =
     renderProject project =
       div [class "project"] 
         [ div [class "project-title"] [ (text project.name) ]
-        , button [onClick AddScene, class "add-scene-button"] [text "Add Scene"]
-        , button [onClick (AnimateProject project), class "animate-project-button"] [text "Animate Project"]
+        , button [onClick AddScene, class "add-scene-button", class "blue"] [text "Add Scene"]
+        , button [onClick (AnimateProject project), class "animate-project-button", class "green"] [text "Animate Project"]
         , div [class "scene-container"] (List.indexedMap (renderScene project) (toList project.scenes))
         ]
     renderProjects : List Project -> Html Msg
     renderProjects projects =
       div [class "projects"]
-        [ input [type_ "text", onInput ProjectNameChanged] []
-        , button [onClick CreateProject] [text "New Project"]
-        , (ul [] (List.map (\p -> (li [] [a [onClick (ToProjectView p 0), href "#"] [text p.name]])) projects))
+        [ input [type_ "text", onInput ProjectNameChanged, class "project-name-input"] []
+        , button [onClick CreateProject, class "new-project-button", class "green"] [text "New Project"]
+        , (ul [class "project-listing"] (List.map (\p -> (li [] [a [onClick (ToProjectView p 0), href "#"] [text p.name]])) projects))
         ]
     menuButton theLbl theMsg =
       button [onClick theMsg] [text theLbl]
@@ -474,8 +474,9 @@ view model =
       , case model.currentAnimation of
         Just path ->
           div [ class "animation" ]
-          [ img [ src path ] []
-          , button [ onClick StopAnimation ] [ text "Close" ]
+          [ img [ src path, class "animation-picture" ] []
+          , button [ onClick StopAnimation, class "stop-animation-button" ] [ text "Close" ]
+          , div [ class "animation-overlay" ] []
           ]
         Nothing -> span [] []
       ]

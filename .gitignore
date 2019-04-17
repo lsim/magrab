@@ -1,5 +1,5 @@
 node_modules
-generated
+#generated
 elm-stuff
 .DS_Store
 /images/*.jpg

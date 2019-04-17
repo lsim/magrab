@@ -155,6 +155,8 @@ type Msg
   | AnimationReady String
   | StopAnimation
   | DeleteScene Project Int
+  | SwapImageWithNext Project Int Int
+  | DeleteImage Project Int Int
   | NoOp
 
 
@@ -198,12 +200,39 @@ removeFromList : Int -> List a -> List a
 removeFromList i xs =
   (List.take i xs) ++ (List.drop (i+1) xs) 
 
+removeFromArray : Int -> Array a -> Array a
+removeFromArray i xs =
+  xs |> Array.toList |> removeFromList i |> Array.fromList
+
+swapWithNext : Int -> Array a -> Array a
+swapWithNext index array =
+  let
+    indexed = Array.get index array
+    next = Array.get (index + 1) array
+  in
+    case (indexed, next) of
+      (Just i, Just n) -> array
+        |> Array.set index n
+        |> Array.set (index + 1) i
+      _ -> array
+
 scrollToRight : String -> Cmd Msg
 scrollToRight id =
   Process.sleep 700
     |> Task.andThen (\_ -> Dom.getViewportOf id)
     |> Task.andThen (\info -> Dom.setViewportOf id (Debug.log "Scrolling " info.scene.width) 0)
     |> Task.attempt (\_ -> NoOp)
+
+swapImageWithNextInProject model project sceneIndex imageIndex =
+  case project.scenes |> Array.get sceneIndex of
+    Just scene ->
+      let
+        newImages = swapWithNext imageIndex scene.images
+        newScenes = Array.set sceneIndex { scene | images = newImages } project.scenes
+        newProject = { project | scenes = newScenes }
+      in
+        updateProject model newProject
+    Nothing -> model
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -329,14 +358,33 @@ update msg model =
 
     DeleteScene project sceneIndex ->
       let
-        newScenes = project.scenes 
-          |> Array.toList 
-          |> removeFromList sceneIndex 
-          |> Array.fromList
+        newScenes = removeFromArray sceneIndex project.scenes 
         newProject = { project | scenes = newScenes }
       in
         (updateProject model newProject, initiateSave)
     
+    SwapImageWithNext project sceneIndex imageIndex ->
+      case project.scenes |> Array.get sceneIndex of
+        Just scene ->
+          let
+            newImages = swapWithNext imageIndex scene.images
+            newScenes = Array.set sceneIndex { scene | images = newImages } project.scenes
+            newProject = { project | scenes = newScenes }
+          in
+            (updateProject model newProject, initiateSave)
+        Nothing -> (model, Cmd.none)
+
+    DeleteImage project sceneIndex imageIndex ->
+      case project.scenes |> Array.get sceneIndex of
+        Just scene ->
+          let
+            newImages = scene.images |> removeFromArray imageIndex
+            newScenes = Array.set sceneIndex { scene | images = newImages } project.scenes
+            newProject = { project | scenes = newScenes }
+          in
+            (updateProject model newProject, initiateSave)
+        Nothing -> (model, Cmd.none)
+
     NoOp -> (model, Cmd.none)
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -357,18 +405,18 @@ view model =
         , renderInput "Camera user" settings.cameraUser "text" CameraUserChanged
         , renderInput "Camera pass" settings.cameraPass "password" CameraPassChanged
         ]
-    renderImage : ImageInfo -> Html Msg
-    renderImage i =
-      div [ class "image"] [ img [src i.path] []
+    renderImage : Project -> Int -> Int -> ImageInfo -> Html Msg
+    renderImage project sceneIndex imageIndex image =
+      div [ class "image"] [ img [src image.path] []
           , div [ class "image-menu" ]
-            [ button [ class "image-move-left" ] [ text "<" ]
-            , button [ class "image-delete-button", class "red" ] [ text "x" ]
-            , button [ class "image-move-right" ] [ text ">" ]
+            [ button [ onClick (SwapImageWithNext project sceneIndex (imageIndex - 1)), class "image-move-left" ] [ text "<" ]
+            , button [ onClick (DeleteImage project sceneIndex imageIndex), class "image-delete-button", class "red" ] [ text "x" ]
+            , button [ onClick (SwapImageWithNext project sceneIndex imageIndex), class "image-move-right" ] [ text ">" ]
             ]
           ]
-    renderKeyedImage : ImageInfo -> (String, Html Msg)
-    renderKeyedImage i =
-      (i.path, lazy renderImage i)
+    renderKeyedImage : Project -> Int -> Int -> ImageInfo -> (String, Html Msg)
+    renderKeyedImage project sceneIndex imageIndex image =
+      (image.path, lazy (renderImage project sceneIndex imageIndex) image)
     renderScene : Project -> Int -> Scene -> Html Msg
     renderScene project index scene =
       div [class "scene"]
@@ -378,15 +426,15 @@ view model =
         , button [onClick (ReverseScene project index scene)] [text "Reverse"]
         , button [onClick (AnimateScene scene)] [text "Animate"]
         , button [class "red", class "scene-delete-button", onClick (DeleteScene project index)] [text "Delete Scene"]
-        , Keyed.node "div" [class "images", id ("scene-"++(String.fromInt index))] (List.map renderKeyedImage (toList scene.images))
+        , Keyed.node "div" [class "images", id ("scene-"++(String.fromInt index))] (List.indexedMap (renderKeyedImage project index) (toList scene.images))
         ]
     renderProject : Project -> Html Msg
     renderProject project =
       div [class "project"] 
-        [ div [] [ (text project.name) ]
-        , button [onClick AddScene] [text "Add Scene"]
-        , button [onClick (AnimateProject project)] [text "Animate Project"]
-        , div [] (List.indexedMap (renderScene project) (toList project.scenes))
+        [ div [class "project-title"] [ (text project.name) ]
+        , button [onClick AddScene, class "add-scene-button"] [text "Add Scene"]
+        , button [onClick (AnimateProject project), class "animate-project-button"] [text "Animate Project"]
+        , div [class "scene-container"] (List.indexedMap (renderScene project) (toList project.scenes))
         ]
     renderProjects : List Project -> Html Msg
     renderProjects projects =

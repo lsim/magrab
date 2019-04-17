@@ -131,6 +131,8 @@ type alias Model =
   , settings : Settings
   , currentView : CurrentView
   , newProjectName : String
+  , currentAnimation : Maybe String
+  , previousSaves : List (List Project)
   }
 
 type Msg
@@ -144,12 +146,19 @@ type Msg
   | CameraUserChanged String
   | CameraPassChanged String
   | CreateProject
+  -- | DeleteProject
   | AddScene
   | SaveProjects
   | MoveSceneUp Project Int
   | ReverseScene Project Int Scene
-  | AnimateScene Project Int Scene
+  | AnimateScene Scene
+  | AnimateProject Project
+  | AnimationReady String
+  | StopAnimation
   | DeleteScene Project Int
+  | SwapImageWithNext Project Int Int
+  | DeleteImage Project Int Int
+  | UndoLatest
   | NoOp
 
 
@@ -163,6 +172,8 @@ init _ =
      }
    , currentView = ProjectsView
    , newProjectName = ""
+   , currentAnimation = Nothing
+   , previousSaves = []
   }, Cmd.none)
 
 actIfProjectView model fn = 
@@ -192,12 +203,47 @@ removeFromList : Int -> List a -> List a
 removeFromList i xs =
   (List.take i xs) ++ (List.drop (i+1) xs) 
 
+removeFromArray : Int -> Array a -> Array a
+removeFromArray i xs =
+  xs |> Array.toList |> removeFromList i |> Array.fromList
+
+swapWithNext : Int -> Array a -> Array a
+swapWithNext index array =
+  let
+    indexed = Array.get index array
+    next = Array.get (index + 1) array
+  in
+    case (indexed, next) of
+      (Just i, Just n) -> array
+        |> Array.set index n
+        |> Array.set (index + 1) i
+      _ -> array
+
 scrollToRight : String -> Cmd Msg
 scrollToRight id =
   Process.sleep 700
     |> Task.andThen (\_ -> Dom.getViewportOf id)
-    |> Task.andThen (\info -> Dom.setViewportOf id (Debug.log "Scrolling " info.scene.width) 0)
+    |> Task.andThen (\info -> Dom.setViewportOf id info.scene.width 0)
     |> Task.attempt (\_ -> NoOp)
+
+swapImageWithNextInProject model project sceneIndex imageIndex =
+  case project.scenes |> Array.get sceneIndex of
+    Just scene ->
+      let
+        newImages = swapWithNext imageIndex scene.images
+        newScenes = Array.set sceneIndex { scene | images = newImages } project.scenes
+        newProject = { project | scenes = newScenes }
+      in
+        updateProject model newProject
+    Nothing -> model
+
+updateViewFromProjects oldView newProjects =
+  case oldView of
+    ProjectView project -> 
+      case List.filter (\p -> p.id == project.id) newProjects of
+        newProject :: _ -> ProjectView newProject
+        _ -> ProjectsView
+    other -> other
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -227,14 +273,11 @@ update msg model =
             newProjects = case (Decode.decodeString projectsDecoder safeJsonString) of 
               Ok ps -> ps
               Err err -> Debug.log ("json parsing failed"++(Decode.errorToString err)) []
-            newView = case model.currentView of
-              ProjectView project -> 
-                case List.filter (\p -> p.id == project.id) newProjects of
-                  newProject :: _ -> ProjectView newProject
-                  _ -> ProjectsView
-              other -> other
+            newView = updateViewFromProjects model.currentView newProjects
           in
-            ({ model | projects = newProjects, currentView = newView }, Cmd.none)
+            ({ model | projects = newProjects, currentView = newView, previousSaves = newProjects :: model.previousSaves }, Cmd.none)
+        "gif-ready" :: fileName :: _ ->
+          ({ model | currentAnimation = Just fileName }, Cmd.none)
         _ -> (model, Cmd.none) -- Unknown message received - ignore
 
     ToSettingsView ->
@@ -271,7 +314,7 @@ update msg model =
           (updateProject model newProject, initiateSave))
 
     SaveProjects ->
-      (model, websocketOut ("save:"++String.replace ":" "<colon>" (Encode.encode 0 (Encode.list projectEncoder model.projects)))) -- 0 indents
+      ({ model | previousSaves = (model.projects :: model.previousSaves) }, websocketOut ("save:"++String.replace ":" "<colon>" (Encode.encode 0 (Encode.list projectEncoder model.projects)))) -- 0 indents
 
     MoveSceneUp project sceneIndex ->
       let
@@ -292,19 +335,71 @@ update msg model =
       in
         (updateProject model newProject, initiateSave)
 
-    AnimateScene project sceneIndex scene ->
-      (model, Cmd.none) -- TODO
+    AnimateScene scene ->
+      let
+        imageNames = scene.images
+          |> Array.toList
+          |> List.map (\i -> i.path)
+          |> String.join ":"
+      in
+        (model, websocketOut ("make-gif:"++imageNames))
+
+    AnimateProject project ->
+      let
+        imageNames = project.scenes
+          |> Array.toList
+          |> List.concatMap (\scene -> 
+            scene.images 
+            |> Array.toList 
+            |> List.map (\i -> i.path))
+          |> String.join ":"
+      in
+        (model, websocketOut ("make-gif:"++imageNames))
+
+    AnimationReady fileName ->
+      ({ model | currentAnimation = Just fileName }, Cmd.none)
+
+    StopAnimation ->
+      ({ model | currentAnimation = Nothing }, Cmd.none)
 
     DeleteScene project sceneIndex ->
       let
-        newScenes = project.scenes 
-          |> Array.toList 
-          |> removeFromList sceneIndex 
-          |> Array.fromList
+        newScenes = removeFromArray sceneIndex project.scenes 
         newProject = { project | scenes = newScenes }
       in
         (updateProject model newProject, initiateSave)
     
+    SwapImageWithNext project sceneIndex imageIndex ->
+      case project.scenes |> Array.get sceneIndex of
+        Just scene ->
+          let
+            newImages = swapWithNext imageIndex scene.images
+            newScenes = Array.set sceneIndex { scene | images = newImages } project.scenes
+            newProject = { project | scenes = newScenes }
+          in
+            (updateProject model newProject, initiateSave)
+        Nothing -> (model, Cmd.none)
+
+    DeleteImage project sceneIndex imageIndex ->
+      case project.scenes |> Array.get sceneIndex of
+        Just scene ->
+          let
+            newImages = scene.images |> removeFromArray imageIndex
+            newScenes = Array.set sceneIndex { scene | images = newImages } project.scenes
+            newProject = { project | scenes = newScenes }
+          in
+            (updateProject model newProject, initiateSave)
+        Nothing -> (model, Cmd.none)
+
+    UndoLatest ->
+      case model.previousSaves of
+        current :: previous :: rest -> 
+          let
+            newView = updateViewFromProjects model.currentView previous
+          in
+            ({ model | previousSaves = previous :: rest, projects = previous, currentView = newView }, Cmd.none)
+        _ -> (model, Cmd.none)
+
     NoOp -> (model, Cmd.none)
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -325,42 +420,43 @@ view model =
         , renderInput "Camera user" settings.cameraUser "text" CameraUserChanged
         , renderInput "Camera pass" settings.cameraPass "password" CameraPassChanged
         ]
-    renderImage : ImageInfo -> Html Msg
-    renderImage i =
-      div [ class "image"] [ img [src i.path] []
+    renderImage : Project -> Int -> Int -> ImageInfo -> Html Msg
+    renderImage project sceneIndex imageIndex image =
+      div [ class "image"] [ img [src image.path] []
           , div [ class "image-menu" ]
-            [ button [ class "image-move-left" ] [ text "<" ]
-            , button [ class "image-delete-button", class "red" ] [ text "x" ]
-            , button [ class "image-move-right" ] [ text ">" ]
+            [ button [ onClick (SwapImageWithNext project sceneIndex (imageIndex - 1)), class "image-move-left" ] [ text "<" ]
+            , button [ onClick (DeleteImage project sceneIndex imageIndex), class "image-delete-button", class "red" ] [ text "x" ]
+            , button [ onClick (SwapImageWithNext project sceneIndex imageIndex), class "image-move-right" ] [ text ">" ]
             ]
           ]
-    renderKeyedImage : ImageInfo -> (String, Html Msg)
-    renderKeyedImage i =
-      (i.path, lazy renderImage i)
+    renderKeyedImage : Project -> Int -> Int -> ImageInfo -> (String, Html Msg)
+    renderKeyedImage project sceneIndex imageIndex image =
+      (image.path, lazy (renderImage project sceneIndex imageIndex) image)
     renderScene : Project -> Int -> Scene -> Html Msg
     renderScene project index scene =
       div [class "scene"]
         [ span [class "scene-hdr"] [(text ("Scene " ++ String.fromInt (index+1)))]
-        , button [onClick (GrabImage project index)] [text "Take picture!"]
-        , button [onClick (MoveSceneUp project index)] [text "Move up"]
+        , button [onClick (GrabImage project index), class "blue"] [text "Take Picture!"]
+        , button [onClick (MoveSceneUp project index)] [text "Move Up"]
         , button [onClick (ReverseScene project index scene)] [text "Reverse"]
-        , button [onClick (AnimateScene project index scene)] [text "Animate"]
+        , button [onClick (AnimateScene scene), class "green"] [text "Animate"]
         , button [class "red", class "scene-delete-button", onClick (DeleteScene project index)] [text "Delete Scene"]
-        , Keyed.node "div" [class "images", id ("scene-"++(String.fromInt index))] (List.map renderKeyedImage (toList scene.images))
+        , Keyed.node "div" [class "images", id ("scene-"++(String.fromInt index))] (List.indexedMap (renderKeyedImage project index) (toList scene.images))
         ]
     renderProject : Project -> Html Msg
     renderProject project =
       div [class "project"] 
-        [ div [] [ (text project.name) ]
-        , button [onClick AddScene] [text "Add scene"]
-        , div [] (List.indexedMap (renderScene project) (toList project.scenes))
+        [ div [class "project-title"] [ (text project.name) ]
+        , button [onClick AddScene, class "add-scene-button", class "blue"] [text "Add Scene"]
+        , button [onClick (AnimateProject project), class "animate-project-button", class "green"] [text "Animate Project"]
+        , div [class "scene-container"] (List.indexedMap (renderScene project) (toList project.scenes))
         ]
     renderProjects : List Project -> Html Msg
     renderProjects projects =
       div [class "projects"]
-        [ input [type_ "text", onInput ProjectNameChanged] []
-        , button [onClick CreateProject] [text "New Project"]
-        , (ul [] (List.map (\p -> (li [] [a [onClick (ToProjectView p 0), href "#"] [text p.name]])) projects))
+        [ input [type_ "text", onInput ProjectNameChanged, class "project-name-input"] []
+        , button [onClick CreateProject, class "new-project-button", class "green"] [text "New Project"]
+        , (ul [class "project-listing"] (List.map (\p -> (li [] [a [onClick (ToProjectView p 0), href "#"] [text p.name]])) projects))
         ]
     menuButton theLbl theMsg =
       button [onClick theMsg] [text theLbl]
@@ -369,9 +465,18 @@ view model =
       [ div [class "menu"]
         [ menuButton "Settings" ToSettingsView
         , menuButton "Projects" ToProjectsView
+        , menuButton "Undo" UndoLatest
         ]
       , case model.currentView of
         SettingsView -> lazy renderSettings model.settings
         ProjectsView -> lazy renderProjects model.projects
         ProjectView p -> lazy renderProject p
+      , case model.currentAnimation of
+        Just path ->
+          div [ class "animation" ]
+          [ img [ src path, class "animation-picture" ] []
+          , button [ onClick StopAnimation, class "stop-animation-button" ] [ text "Close" ]
+          , div [ class "animation-overlay" ] []
+          ]
+        Nothing -> span [] []
       ]

@@ -18,7 +18,9 @@ const log = karhu.context('index');
 const images = require('./images');
 const config = require('./config');
 
-const { port, projectsDbFile, imagePath } = config;
+const {
+  port, projectsDbFile, imagePath, gifPath,
+} = config;
 
 // Set up persistence
 
@@ -31,12 +33,14 @@ expressWS(app);
 
 app.use(express.static('./src/client'));
 app.use(express.static(`./${imagePath}`)); // TODO: Hm .. that path has to be relative then
+app.use(express.static(`./${gifPath}`)); // TODO: Hm .. that path has to be relative then
 
 // Prune image files only at startup (when no undo buffer would be likely to cause trouble)
 projectsDb.find({}, (err, projects) => {
   if (err) log.warn(`Error getting data for image prune ${err}`);
   else images.pruneOrphanImages(projects);
 });
+images.pruneGifs();
 
 function sendState(ws) {
   log.debug('Sending state to browser');
@@ -92,6 +96,15 @@ app.ws('/connect', (websocket /* , request */) => {
       images.grabImage(cameraUrl, cameraUser, cameraPass).then((fileName) => {
         websocket.send(`image-grabbed:${fileName}:${projectId}:${sceneIndex}`);
       }, err => log.warn(`Grab failed: ${err}`));
+    } else if (messageType === 'make-gif') {
+      const promise = images.buildGifForImages(args, 1280, 800);
+      promise.then(
+        (gifName) => {
+          log.debug('Gif built - sending info to client');
+          return websocket.send(`gif-ready:${gifName}`);
+        },
+        err => log.warn(`Failed creating gif ${err}`),
+      );
     }
   });
 });

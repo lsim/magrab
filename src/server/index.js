@@ -109,4 +109,4 @@ app.ws('/connect', (websocket /* , request */) => {
   });
 });
 
-app.listen(port, () => log.info(`Magrab server listening on port ${port}!`));
+app.listen(port, '0.0.0.0', () => log.info(`Magrab server listening on port ${port}!`));

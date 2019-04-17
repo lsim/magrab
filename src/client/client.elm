@@ -132,6 +132,7 @@ type alias Model =
   , currentView : CurrentView
   , newProjectName : String
   , currentAnimation : Maybe String
+  , previousSaves : List (List Project)
   }
 
 type Msg
@@ -157,6 +158,7 @@ type Msg
   | DeleteScene Project Int
   | SwapImageWithNext Project Int Int
   | DeleteImage Project Int Int
+  | UndoLatest
   | NoOp
 
 
@@ -171,6 +173,7 @@ init _ =
    , currentView = ProjectsView
    , newProjectName = ""
    , currentAnimation = Nothing
+   , previousSaves = []
   }, Cmd.none)
 
 actIfProjectView model fn = 
@@ -220,7 +223,7 @@ scrollToRight : String -> Cmd Msg
 scrollToRight id =
   Process.sleep 700
     |> Task.andThen (\_ -> Dom.getViewportOf id)
-    |> Task.andThen (\info -> Dom.setViewportOf id (Debug.log "Scrolling " info.scene.width) 0)
+    |> Task.andThen (\info -> Dom.setViewportOf id info.scene.width 0)
     |> Task.attempt (\_ -> NoOp)
 
 swapImageWithNextInProject model project sceneIndex imageIndex =
@@ -233,6 +236,14 @@ swapImageWithNextInProject model project sceneIndex imageIndex =
       in
         updateProject model newProject
     Nothing -> model
+
+updateViewFromProjects oldView newProjects =
+  case oldView of
+    ProjectView project -> 
+      case List.filter (\p -> p.id == project.id) newProjects of
+        newProject :: _ -> ProjectView newProject
+        _ -> ProjectsView
+    other -> other
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -262,14 +273,9 @@ update msg model =
             newProjects = case (Decode.decodeString projectsDecoder safeJsonString) of 
               Ok ps -> ps
               Err err -> Debug.log ("json parsing failed"++(Decode.errorToString err)) []
-            newView = case model.currentView of
-              ProjectView project -> 
-                case List.filter (\p -> p.id == project.id) newProjects of
-                  newProject :: _ -> ProjectView newProject
-                  _ -> ProjectsView
-              other -> other
+            newView = updateViewFromProjects model.currentView newProjects
           in
-            ({ model | projects = newProjects, currentView = newView }, Cmd.none)
+            ({ model | projects = newProjects, currentView = newView, previousSaves = newProjects :: model.previousSaves }, Cmd.none)
         "gif-ready" :: fileName :: _ ->
           ({ model | currentAnimation = Just fileName }, Cmd.none)
         _ -> (model, Cmd.none) -- Unknown message received - ignore
@@ -308,7 +314,7 @@ update msg model =
           (updateProject model newProject, initiateSave))
 
     SaveProjects ->
-      (model, websocketOut ("save:"++String.replace ":" "<colon>" (Encode.encode 0 (Encode.list projectEncoder model.projects)))) -- 0 indents
+      ({ model | previousSaves = (model.projects :: model.previousSaves) }, websocketOut ("save:"++String.replace ":" "<colon>" (Encode.encode 0 (Encode.list projectEncoder model.projects)))) -- 0 indents
 
     MoveSceneUp project sceneIndex ->
       let
@@ -385,6 +391,15 @@ update msg model =
             (updateProject model newProject, initiateSave)
         Nothing -> (model, Cmd.none)
 
+    UndoLatest ->
+      case model.previousSaves of
+        current :: previous :: rest -> 
+          let
+            newView = updateViewFromProjects model.currentView previous
+          in
+            ({ model | previousSaves = previous :: rest, projects = previous, currentView = newView }, Cmd.none)
+        _ -> (model, Cmd.none)
+
     NoOp -> (model, Cmd.none)
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -450,6 +465,7 @@ view model =
       [ div [class "menu"]
         [ menuButton "Settings" ToSettingsView
         , menuButton "Projects" ToProjectsView
+        , menuButton "Undo" UndoLatest
         ]
       , case model.currentView of
         SettingsView -> lazy renderSettings model.settings

@@ -1,7 +1,7 @@
 node_modules
-#generated
 elm-stuff
 .DS_Store
 /images/*.jpg
+/images/tmp
 /gifs/*.gif
 *.db

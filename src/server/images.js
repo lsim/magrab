@@ -2,8 +2,8 @@ const fs = require('fs');
 const request = require('request');
 const log = require('karhu').context('images');
 const uuid = require('uuid/v4');
-const GifEncoder = require('gif-encoder');
-const getPixels = require('get-pixels');
+const { exec } = require('child_process');
+const rimraf = require('rimraf');
 
 
 const config = require('./config');
@@ -80,47 +80,38 @@ function pruneGifs() {
   });
 }
 
-function buildGifForImages(fileNames) {
-  if (!fileNames || fileNames.length === 0) {
-    log.warn('buildGifForImages was given no images!');
-    return Promise.reject();
-  }
-  const gifFileName = `${uuid()}.gif`;
-  let gif = null;
+const padToFive = number => (number <= 99999 ? `0000${number}`.slice(-5) : number);
 
+function prepareImagesForEncoding(tmpPath, fileNames) {
+  // Create folder and create symlinks to the given file names
+  // with numbers in them to indicate the sequence to ffmpeg
+  rimraf.sync(tmpPath);
+  fs.mkdirSync(tmpPath);
+  fileNames.forEach((fileName, index) => {
+    fs.symlinkSync(`${imagePath}/${fileName}`, `${tmpPath}/${padToFive(index)}.jpg`);
+  });
+}
+
+function makeVideoFromImages(fileNames) {
+  const tmpPath = `${imagePath}/tmp`;
+  const outFileName = `${uuid()}.mkv`;
+  const outputPath = `${tmpPath}/${outFileName}`;
+  const imagesPerSecond = 10;
   return new Promise((resolve, reject) => {
-    const encodeFrame = (index = 0) => {
-      getPixels(`${imagePath}/${fileNames[index]}`, (err, pixels) => {
-        if (err) reject(Error(`Error encoding frame ${fileNames[index]} at index ${index}: ${err}`));
-        else {
-          if (index === 0) { // We can now detect the dimensions of the images
-            const [width, height] = pixels.shape;
-            gif = new GifEncoder(width, height);
-            const file = fs.createWriteStream(`${gifPath}/${gifFileName}`);
-            gif.pipe(file);
-            gif.setQuality(5); // Higher is worse quality, higher speed?
-            gif.setFrameRate(10);
-            gif.setRepeat(0);
-            gif.writeHeader();
-          }
-          gif.addFrame(pixels.data);
-          gif.read();
-          if (index + 1 < fileNames.length) encodeFrame(index + 1);
-          else {
-            gif.finish();
-            resolve(gifFileName);
-          }
-        }
-        return undefined;
-      });
-    };
-    encodeFrame();
+    prepareImagesForEncoding(tmpPath, fileNames);
+    // Call command line tool made available in docker image
+    exec(`ffmpeg -r ${imagesPerSecond} -f image2 -vcodec mjpeg -pix_fmt rgb24 -i "${tmpPath}/%05d.jpg" ${outputPath}`, (err, stdout, stderr) => {
+      if (err) return reject(err);
+      log.debug(stderr);
+      resolve(`tmp/${outFileName}`);
+      return null;
+    });
   });
 }
 
 module.exports = {
   grabImage,
   pruneOrphanImages,
-  buildGifForImages,
   pruneGifs,
+  makeVideoFromImages,
 };

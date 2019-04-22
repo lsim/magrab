@@ -4,7 +4,7 @@
   "description": "Stop motion image grabber for Maggie",
   "main": "index.js",
   "scripts": {
-    "build": "./build.sh",
+    "build": "elm make src/client/client.elm --output=src/client/generated/client.js",
     "start": "src/server/index.js",
     "watch": "chokidar 'src/client/**/*.elm' -c 'elm make src/client/client.elm --output=src/client/generated/client.js'"
   },
@@ -14,11 +14,10 @@
     "ansi-styles": "^3.2.1",
     "express": "^4.16.4",
     "express-ws": "^4.0.0",
-    "get-pixels": "^3.3.2",
-    "gif-encoder": "^0.7.2",
     "karhu": "^1.4.0",
     "nedb": "^1.8.0",
     "request": "^2.88.0",
+    "rimraf": "^2.6.3",
     "uuid": "^3.3.2"
   },
   "devDependencies": {

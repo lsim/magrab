@@ -1,0 +1,17 @@
+# Magrab
+
+Margrethe's image grabbing stop motion play house.
+
+Built with docker, a node.js backend and an elm frontend.
+
+Publish docker image with
+```
+docker login
+docker tag magrab larsim/magrab:latest
+docker push larsim/magrab:latest
+```
+
+Adapt the docker-compose.yml to match your set up (ports/volumes)
+
+Adapt to your ip camera url/auth scheme as needed.
+

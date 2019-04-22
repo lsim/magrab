@@ -25,7 +25,7 @@ body {
   width: 90vw;
   height: 90vh;
 }
-.animation img { max-width: 90vw; max-height: 90vh; }
+.animation video { max-width: 90vw; max-height: 90vh; }
 .animation .animation-overlay { position: fixed; opacity: .5; top: 0; left: 0; bottom: 0; right: 0; background-color: white; z-index: -1; }
 
 .menu {

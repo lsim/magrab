@@ -1,7 +1,7 @@
 .git
 .gitignore
 
-DockerFile
+Dockerfile
 
 node_modules
 .vscode

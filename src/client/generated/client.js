@@ -5969,7 +5969,7 @@ var author$project$Main$update = F2(
 											projects: newProjects
 										}),
 									elm$core$Platform$Cmd$none);
-							case 'gif-ready':
+							case 'video-ready':
 								var _n8 = _n1.b;
 								var fileName = _n8.a;
 								return _Utils_Tuple2(
@@ -6132,7 +6132,7 @@ var author$project$Main$update = F2(
 						elm$core$Array$toList(scene.images)));
 				return _Utils_Tuple2(
 					model,
-					author$project$Main$websocketOut('make-gif:' + imageNames));
+					author$project$Main$websocketOut('make-video:' + imageNames));
 			case 'AnimateProject':
 				var project = msg.a;
 				var imageNames = A2(
@@ -6151,7 +6151,7 @@ var author$project$Main$update = F2(
 						elm$core$Array$toList(project.scenes)));
 				return _Utils_Tuple2(
 					model,
-					author$project$Main$websocketOut('make-gif:' + imageNames));
+					author$project$Main$websocketOut('make-video:' + imageNames));
 			case 'AnimationReady':
 				var fileName = msg.a;
 				return _Utils_Tuple2(
@@ -6313,6 +6313,16 @@ var elm$html$Html$span = _VirtualDom_node('span');
 var elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
 var elm$html$Html$text = elm$virtual_dom$VirtualDom$text;
 var elm$html$Html$ul = _VirtualDom_node('ul');
+var elm$html$Html$video = _VirtualDom_node('video');
+var elm$json$Json$Encode$bool = _Json_wrap;
+var elm$html$Html$Attributes$boolProperty = F2(
+	function (key, bool) {
+		return A2(
+			_VirtualDom_property,
+			key,
+			elm$json$Json$Encode$bool(bool));
+	});
+var elm$html$Html$Attributes$autoplay = elm$html$Html$Attributes$boolProperty('autoplay');
 var elm$html$Html$Attributes$stringProperty = F2(
 	function (key, string) {
 		return A2(
@@ -6321,6 +6331,7 @@ var elm$html$Html$Attributes$stringProperty = F2(
 			elm$json$Json$Encode$string(string));
 	});
 var elm$html$Html$Attributes$class = elm$html$Html$Attributes$stringProperty('className');
+var elm$html$Html$Attributes$controls = elm$html$Html$Attributes$boolProperty('controls');
 var elm$html$Html$Attributes$href = function (url) {
 	return A2(
 		elm$html$Html$Attributes$stringProperty,
@@ -6775,28 +6786,20 @@ var author$project$Main$view = function (model) {
 						_List_fromArray(
 							[
 								A2(
-								elm$html$Html$img,
+								elm$html$Html$video,
 								_List_fromArray(
 									[
+										elm$html$Html$Attributes$controls(true),
 										elm$html$Html$Attributes$src(path),
+										elm$html$Html$Attributes$autoplay(true),
 										elm$html$Html$Attributes$class('animation-picture')
 									]),
 								_List_Nil),
 								A2(
-								elm$html$Html$button,
-								_List_fromArray(
-									[
-										elm$html$Html$Events$onClick(author$project$Main$StopAnimation),
-										elm$html$Html$Attributes$class('stop-animation-button')
-									]),
-								_List_fromArray(
-									[
-										elm$html$Html$text('Close')
-									])),
-								A2(
 								elm$html$Html$div,
 								_List_fromArray(
 									[
+										elm$html$Html$Events$onClick(author$project$Main$StopAnimation),
 										elm$html$Html$Attributes$class('animation-overlay')
 									]),
 								_List_Nil)

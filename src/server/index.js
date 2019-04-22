@@ -11,7 +11,7 @@ logConf.colors.DEBUG = styles.blue;
 logConf.colors.INFO = styles.yellowBright;
 logConf.colors.WARN = styles.orange;
 logConf.colors.ERROR = styles.red;
-logConf.defaultLogLevel = 'DEBUG';
+// logConf.defaultLogLevel = 'DEBUG';
 karhu.configure(logConf);
 const log = karhu.context('index');
 // Load internal dependencies
@@ -96,14 +96,14 @@ app.ws('/connect', (websocket /* , request */) => {
       images.grabImage(cameraUrl, cameraUser, cameraPass).then((fileName) => {
         websocket.send(`image-grabbed:${fileName}:${projectId}:${sceneIndex}`);
       }, err => log.warn(`Grab failed: ${err}`));
-    } else if (messageType === 'make-gif') {
-      const promise = images.buildGifForImages(args, 1280, 800);
+    } else if (messageType === 'make-video') {
+      const promise = images.makeVideoFromImages(args);
       promise.then(
-        (gifName) => {
-          log.debug('Gif built - sending info to client');
-          return websocket.send(`gif-ready:${gifName}`);
+        (videoName) => {
+          log.debug('Video built - sending info to client');
+          return websocket.send(`video-ready:${videoName}`);
         },
-        err => log.warn(`Failed creating gif ${err}`),
+        err => log.warn(`Video build failed ${err}`),
       );
     }
   });

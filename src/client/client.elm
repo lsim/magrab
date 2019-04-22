@@ -276,7 +276,7 @@ update msg model =
             newView = updateViewFromProjects model.currentView newProjects
           in
             ({ model | projects = newProjects, currentView = newView, previousSaves = newProjects :: model.previousSaves }, Cmd.none)
-        "gif-ready" :: fileName :: _ ->
+        "video-ready" :: fileName :: _ ->
           ({ model | currentAnimation = Just fileName }, Cmd.none)
         _ -> (model, Cmd.none) -- Unknown message received - ignore
 
@@ -342,7 +342,7 @@ update msg model =
           |> List.map (\i -> i.path)
           |> String.join ":"
       in
-        (model, websocketOut ("make-gif:"++imageNames))
+        (model, websocketOut ("make-video:"++imageNames))
 
     AnimateProject project ->
       let
@@ -354,7 +354,7 @@ update msg model =
             |> List.map (\i -> i.path))
           |> String.join ":"
       in
-        (model, websocketOut ("make-gif:"++imageNames))
+        (model, websocketOut ("make-video:"++imageNames))
 
     AnimationReady fileName ->
       ({ model | currentAnimation = Just fileName }, Cmd.none)
@@ -474,9 +474,9 @@ view model =
       , case model.currentAnimation of
         Just path ->
           div [ class "animation" ]
-          [ img [ src path, class "animation-picture" ] []
-          , button [ onClick StopAnimation, class "stop-animation-button" ] [ text "Close" ]
-          , div [ class "animation-overlay" ] []
+          [ video [ controls True, src path, autoplay True, class "animation-picture" ] []
+          -- , button [ onClick StopAnimation, class "stop-animation-button" ] [ text "Close" ]
+          , div [ onClick StopAnimation, class "animation-overlay" ] []
           ]
         Nothing -> span [] []
       ]

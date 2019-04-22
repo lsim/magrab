@@ -13,5 +13,6 @@ images
 elm.json
 magrab-projects.db
 docker-compose.yml
+build
 
 

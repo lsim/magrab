@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "elm make src/client/client.elm --output=src/client/generated/client.js",
+    "build-prod": "build/elm-optimize.sh src/client/client.elm",
     "start": "src/server/index.js",
     "watch": "chokidar 'src/client/**/*.elm' -c 'elm make src/client/client.elm --output=src/client/generated/client.js'"
   },
@@ -24,6 +25,7 @@
     "chokidar-cli": "^1.2.2",
     "eslint": "^5.16.0",
     "eslint-config-airbnb-base": "^13.1.0",
-    "eslint-plugin-import": "^2.16.0"
+    "eslint-plugin-import": "^2.16.0",
+    "uglify-js": "^3.5.6"
   }
 }

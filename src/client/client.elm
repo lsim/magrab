@@ -117,8 +117,8 @@ addImageToModel model imagePath projectId sceneIndex =
             newProject = { project | scenes = newScenes }
           in
             updateProject model newProject
-        _ -> Debug.log "No such scene" model -- No such scene - ignore
-    _ -> Debug.log "No such project" model -- No such project - ignore
+        _ -> model -- Debug.log "No such scene" model -- No such scene - ignore
+    _ -> model -- Debug.log "No such project" model -- No such project - ignore
 
 
 type CurrentView 
@@ -272,7 +272,7 @@ update msg model =
             safeJsonString = String.replace "<colon>" ":" jsonString
             newProjects = case (Decode.decodeString projectsDecoder safeJsonString) of 
               Ok ps -> ps
-              Err err -> Debug.log ("json parsing failed"++(Decode.errorToString err)) []
+              Err err -> [] -- Debug.log ("json parsing failed"++(Decode.errorToString err)) []
             newView = updateViewFromProjects model.currentView newProjects
           in
             ({ model | projects = newProjects, currentView = newView, previousSaves = newProjects :: model.previousSaves }, Cmd.none)

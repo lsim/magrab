@@ -6,3 +6,4 @@ elm-stuff
 /gifs/*.gif
 *.db
 build/*.js
+generated

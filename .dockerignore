@@ -12,4 +12,6 @@ images
 .eslintrc.json
 elm.json
 magrab-projects.db
+docker-compose.yml
+
 

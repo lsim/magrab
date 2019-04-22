@@ -5,7 +5,7 @@ WORKDIR /opt/app
 
 COPY package.json package-lock.json ./
 
-RUN npm cache clean --force && npm install
+RUN npm cache clean --force && npm install --only=prod
 
 # Each command / line in this file makes up a 'layer'. The result of each is cached.
 

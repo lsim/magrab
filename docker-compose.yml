@@ -1,0 +1,15 @@
+version: '3'
+services:
+  transfer:
+    container_name: magrab
+    image: larsim/magrab:latest
+    # command: 
+    restart: unless-stopped
+    ports:
+      - 3000:3000/tcp
+    environment:
+      - IMAGE_PATH=/magrab/images
+      - DB_FILE_PATH=/magrab/magrab-projects.db
+      - VIDEO_PATH=/magrab/gifs
+    volumes:
+      - .:/magrab

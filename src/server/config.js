@@ -1,6 +1,6 @@
 module.exports = {
   port: 3000,
-  imagePath: 'images',
-  projectsDbFile: 'magrab-projects.db',
-  gifPath: 'gifs',
+  imagePath: process.env.IMAGE_PATH || 'images',
+  projectsDbFile: process.env.DB_FILE_PATH || 'magrab-projects.db',
+  gifPath: process.env.VIDEO_PATH || 'gifs',
 };

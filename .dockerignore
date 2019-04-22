@@ -1,0 +1,15 @@
+.git
+.gitignore
+
+DockerFile
+
+node_modules
+.vscode
+elm-stuff
+gifs
+images
+.eslintignore
+.eslintrc.json
+elm.json
+magrab-projects.db
+

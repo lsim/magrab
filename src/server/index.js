@@ -32,8 +32,8 @@ const app = express();
 expressWS(app);
 
 app.use(express.static('./src/client'));
-app.use(express.static(`./${imagePath}`)); // TODO: Hm .. that path has to be relative then
-app.use(express.static(`./${gifPath}`)); // TODO: Hm .. that path has to be relative then
+app.use(express.static(imagePath));
+app.use(express.static(gifPath));
 
 // Prune image files only at startup (when no undo buffer would be likely to cause trouble)
 projectsDb.find({}, (err, projects) => {

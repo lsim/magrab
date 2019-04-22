@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "./build.sh",
-    "run": "./run.sh",
+    "start": "src/server/index.js",
     "watch": "chokidar 'src/client/**/*.elm' -c 'elm make src/client/client.elm --output=src/client/generated/client.js'"
   },
   "author": "larsolesimonsen@gmail.com",
